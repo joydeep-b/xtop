@@ -17,6 +17,14 @@ renders with [`ratatui`](https://ratatui.rs) + `crossterm`, producing a small
 > Platform: Linux only. NVIDIA GPU support requires the NVIDIA driver + NVML
 > (`libnvidia-ml.so`); without it the GPU widget shows an "unavailable" notice.
 
+## Screenshot
+
+The default dashboard shows CPU, memory, GPU, network, and disk activity in a
+single terminal view, with each panel backed by the same configurable layout
+tree described below.
+
+![xtop terminal dashboard](assets/xtop-screenshot.png)
+
 ## Build & run
 
 ```bash
