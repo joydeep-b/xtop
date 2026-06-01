@@ -1,0 +1,26 @@
+[package]
+name = "xtop"
+version = "0.1.0"
+edition = "2021"
+description = "A lightweight, configurable btop-like terminal system monitor"
+license = "MIT"
+
+[[bin]]
+name = "xtop"
+path = "src/main.rs"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+nvml-wrapper = "0.10"
+dirs = "5"
+anyhow = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

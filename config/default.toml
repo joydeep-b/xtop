@@ -1,0 +1,56 @@
+# xtop default configuration.
+# Copy to ~/.config/xtop/config.toml and edit. Partial files are fine: any key
+# you omit falls back to the value here.
+
+[settings]
+update_ms = 1000   # sampling + redraw interval
+history   = 240    # samples kept for graphs
+theme     = "default"
+graph_style = "braille" # braille / bar
+
+# ---------------------------------------------------------------------------
+# Layout is a recursive split tree that maps onto the terminal area.
+# A node is either a `split` (with a direction + children) or a `widget` leaf.
+# Each child has a `size`:
+#   "NN%"            percentage of the parent
+#   "fill" / "min"   take the remaining space (shared equally between fills)
+#   { length = N }   fixed N rows (vertical) or columns (horizontal)
+#   { ratio = [a,b]} proportional share
+# ---------------------------------------------------------------------------
+[layout]
+direction = "vertical"
+children = [
+  { size = "70%", split = { direction = "horizontal", children = [
+      { size = "50%", split = { direction = "vertical", children = [
+          { size = "50%", widget = "cpu" },
+          { size = "50%", widget = "memory" },
+      ] } },
+      { size = "50%", split = { direction = "vertical", children = [
+          { size = "50%", widget = "gpu_util" },
+          { size = "50%", widget = "gpu_memory" },
+      ] } },
+  ] } },
+  { size = "fill", split = { direction = "horizontal", children = [
+      { size = "50%", widget = "network" },
+      { size = "50%", widget = "disk" },
+  ] } },
+]
+
+[widgets.gpu]
+show_per_process = false
+
+[widgets.memory]
+show_swap = false       # show swap usage text + gauge
+show_usage_bar = false  # show the current RAM usage bar above the history graph
+
+# Names are block devices as in /proc/diskstats (e.g. nvme0n1, sda, dm-0),
+# NOT mountpoints. Empty list = auto (whole disks; loop*/ram* hidden).
+# On this machine: "/" lives on nvme0n1 (LVM), "/data" on sda.
+[widgets.disk]
+devices = ["nvme0n1", "sda"]
+graph_style = "bar"
+
+# Empty list = all non-loopback interfaces.
+[widgets.network]
+interfaces = ["eno1"]
+graph_style = "bar"
