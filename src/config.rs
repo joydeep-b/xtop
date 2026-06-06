@@ -1,11 +1,20 @@
 use anyhow::{bail, Context, Result};
 use ratatui::layout::{Constraint, Direction as RatDirection};
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Embedded fallback configuration. Always parses successfully so the app can
 /// run even with no user config present.
 const DEFAULT_CONFIG: &str = include_str!("../config/default.toml");
+
+const DEFAULT_CONFIG_NAME: &str = "default.toml";
+const SELECTED_CONFIG_NAME: &str = "selected.toml";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProfileInfo {
+    pub name: String,
+    pub path: PathBuf,
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -296,20 +305,60 @@ pub struct NetworkOpts {
 }
 
 impl Config {
-    /// Load configuration: start from the embedded default, then deep-merge the
-    /// user's config file (if present) on top so partial files still work.
+    /// Load the active configuration. The first run creates
+    /// `~/.config/xtop/default.toml` from the embedded default; `selected.toml`
+    /// is then used as the persistent symlink to the selected profile.
     pub fn load() -> Result<Config> {
+        Self::load_active()
+    }
+
+    pub fn load_active() -> Result<Config> {
+        let dir = Self::config_dir().context("could not determine user config directory")?;
+        Self::load_active_in(&dir)
+    }
+
+    pub fn load_profile(profile: &ProfileInfo) -> Result<Config> {
+        Self::load_from_path(&profile.path)
+    }
+
+    pub fn list_profiles() -> Result<Vec<ProfileInfo>> {
+        let dir = Self::config_dir().context("could not determine user config directory")?;
+        Self::ensure_default_config_in(&dir)?;
+        Self::list_profiles_in(&dir)
+    }
+
+    pub fn active_profile_path() -> Result<PathBuf> {
+        let dir = Self::config_dir().context("could not determine user config directory")?;
+        Self::ensure_default_config_in(&dir)?;
+        Self::active_profile_path_in(&dir)
+    }
+
+    pub fn set_active_profile(profile: &ProfileInfo) -> Result<()> {
+        let dir = Self::config_dir().context("could not determine user config directory")?;
+        Self::ensure_default_config_in(&dir)?;
+        Self::set_active_profile_in(&dir, &profile.path)
+    }
+
+    pub fn config_dir() -> Option<PathBuf> {
+        dirs::config_dir().map(|d| d.join("xtop"))
+    }
+
+    fn load_active_in(dir: &Path) -> Result<Config> {
+        Self::ensure_default_config_in(dir)?;
+        let path = Self::active_profile_path_in(dir)?;
+        Self::load_from_path(&path)
+    }
+
+    fn load_from_path(path: &Path) -> Result<Config> {
         let mut base: toml::Value =
             toml::from_str(DEFAULT_CONFIG).context("embedded default config is invalid")?;
 
-        if let Some(path) = Self::user_config_path() {
-            if path.exists() {
-                let text = std::fs::read_to_string(&path)
-                    .with_context(|| format!("reading config {}", path.display()))?;
-                let user: toml::Value = toml::from_str(&text)
-                    .with_context(|| format!("parsing config {}", path.display()))?;
-                merge_value(&mut base, user);
-            }
+        if path.exists() {
+            let text = std::fs::read_to_string(path)
+                .with_context(|| format!("reading config {}", path.display()))?;
+            let user: toml::Value = toml::from_str(&text)
+                .with_context(|| format!("parsing config {}", path.display()))?;
+            merge_value(&mut base, user);
         }
 
         let config: Config = base.try_into().context("invalid configuration")?;
@@ -317,8 +366,73 @@ impl Config {
         Ok(config)
     }
 
-    pub fn user_config_path() -> Option<PathBuf> {
-        dirs::config_dir().map(|d| d.join("xtop").join("config.toml"))
+    fn ensure_default_config_in(dir: &Path) -> Result<PathBuf> {
+        let path = dir.join(DEFAULT_CONFIG_NAME);
+        if !path.exists() {
+            std::fs::create_dir_all(dir)
+                .with_context(|| format!("creating config dir {}", dir.display()))?;
+            std::fs::write(&path, DEFAULT_CONFIG)
+                .with_context(|| format!("writing default config {}", path.display()))?;
+        }
+        Ok(path)
+    }
+
+    fn list_profiles_in(dir: &Path) -> Result<Vec<ProfileInfo>> {
+        let mut profiles = Vec::new();
+        if !dir.exists() {
+            return Ok(profiles);
+        }
+
+        for entry in std::fs::read_dir(dir)
+            .with_context(|| format!("reading config dir {}", dir.display()))?
+        {
+            let entry = entry.with_context(|| format!("reading entry in {}", dir.display()))?;
+            let path = entry.path();
+            if path.file_name().and_then(|n| n.to_str()) == Some(SELECTED_CONFIG_NAME) {
+                continue;
+            }
+            if path.extension().and_then(|ext| ext.to_str()) != Some("toml") {
+                continue;
+            }
+            let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            profiles.push(ProfileInfo {
+                name: name.to_string(),
+                path,
+            });
+        }
+
+        profiles.sort_by(|a, b| {
+            (a.name != DEFAULT_CONFIG_NAME)
+                .cmp(&(b.name != DEFAULT_CONFIG_NAME))
+                .then_with(|| a.name.cmp(&b.name))
+        });
+        Ok(profiles)
+    }
+
+    fn active_profile_path_in(dir: &Path) -> Result<PathBuf> {
+        let selected = dir.join(SELECTED_CONFIG_NAME);
+        if selected.exists() {
+            match std::fs::read_link(&selected) {
+                Ok(target) if target.is_absolute() => Ok(target),
+                Ok(target) => Ok(dir.join(target)),
+                Err(_) => Ok(selected),
+            }
+        } else {
+            Ok(dir.join(DEFAULT_CONFIG_NAME))
+        }
+    }
+
+    fn set_active_profile_in(dir: &Path, target: &Path) -> Result<()> {
+        let selected = dir.join(SELECTED_CONFIG_NAME);
+        if std::fs::symlink_metadata(&selected).is_ok() {
+            std::fs::remove_file(&selected)
+                .with_context(|| format!("removing existing {}", selected.display()))?;
+        }
+        std::os::unix::fs::symlink(target, &selected)
+            .with_context(|| format!("linking {} -> {}", selected.display(), target.display()))?;
+        Ok(())
     }
 
     fn validate(&self) -> Result<()> {
@@ -354,5 +468,79 @@ fn merge_value(base: &mut toml::Value, overlay: toml::Value) {
             }
         }
         (base_slot, overlay) => *base_slot = overlay,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_config_dir(name: &str) -> PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("xtop-{name}-{}-{suffix}", std::process::id()))
+    }
+
+    #[test]
+    fn ensure_default_config_creates_editable_default() {
+        let dir = temp_config_dir("default");
+        let path = Config::ensure_default_config_in(&dir).unwrap();
+
+        assert_eq!(path, dir.join(DEFAULT_CONFIG_NAME));
+        assert!(path.exists());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), DEFAULT_CONFIG);
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn list_profiles_includes_default_and_excludes_selected_pointer() {
+        let dir = temp_config_dir("profiles");
+        Config::ensure_default_config_in(&dir).unwrap();
+        std::fs::write(dir.join("wide.toml"), "[settings]\nhistory = 12\n").unwrap();
+        std::fs::write(dir.join(SELECTED_CONFIG_NAME), "[settings]\nhistory = 99\n").unwrap();
+        std::fs::write(dir.join("notes.txt"), "ignore me").unwrap();
+
+        let names: Vec<String> = Config::list_profiles_in(&dir)
+            .unwrap()
+            .into_iter()
+            .map(|profile| profile.name)
+            .collect();
+
+        assert_eq!(names, vec!["default.toml", "wide.toml"]);
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn load_active_falls_back_to_default_profile() {
+        let dir = temp_config_dir("active-default");
+        Config::ensure_default_config_in(&dir).unwrap();
+        std::fs::write(dir.join(DEFAULT_CONFIG_NAME), "[settings]\nhistory = 7\n").unwrap();
+
+        let config = Config::load_active_in(&dir).unwrap();
+
+        assert_eq!(config.settings.history, 7);
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn set_active_profile_creates_selected_symlink() {
+        let dir = temp_config_dir("selected");
+        Config::ensure_default_config_in(&dir).unwrap();
+        let target = dir.join("compact.toml");
+        std::fs::write(&target, "[settings]\nhistory = 9\n").unwrap();
+
+        Config::set_active_profile_in(&dir, &target).unwrap();
+        let selected = dir.join(SELECTED_CONFIG_NAME);
+
+        assert_eq!(std::fs::read_link(&selected).unwrap(), target);
+        assert_eq!(Config::load_active_in(&dir).unwrap().settings.history, 9);
+
+        let _ = std::fs::remove_dir_all(dir);
     }
 }
