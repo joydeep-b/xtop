@@ -209,8 +209,8 @@ fn title(kind: WidgetKind) -> &'static str {
     match kind {
         WidgetKind::Cpu => "CPU",
         WidgetKind::Memory => "Memory",
-        WidgetKind::Gpu => "GPU",
-        WidgetKind::GpuUtil => "GPU",
+        WidgetKind::Gpu => "GPU Utilization",
+        WidgetKind::GpuUtil => "GPU Utilization",
         WidgetKind::GpuMemory => "GPU Memory",
         WidgetKind::Disk => "Disk IO",
         WidgetKind::Network => "Network IO",

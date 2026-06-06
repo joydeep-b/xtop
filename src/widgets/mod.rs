@@ -306,6 +306,10 @@ fn render_bar_graph(f: &mut Frame, area: Rect, data: &[f64], max: Option<f64>, c
         return;
     }
 
+    paint_bar_graph(f.buffer_mut(), area, data, max, color);
+}
+
+fn paint_bar_graph(buf: &mut Buffer, area: Rect, data: &[f64], max: Option<f64>, color: Color) {
     let scale = max.unwrap_or_else(|| {
         data.iter()
             .copied()
@@ -316,12 +320,18 @@ fn render_bar_graph(f: &mut Frame, area: Rect, data: &[f64], max: Option<f64>, c
     let visible_count = data.len().min(area.width as usize);
     let start_x = area.width as usize - visible_count;
     let style = Style::default().fg(color);
-    let buf = f.buffer_mut();
 
     for y in area.top()..area.bottom() {
         for x in area.left()..area.right() {
             buf[(x, y)].set_symbol(" ").set_style(style);
         }
+    }
+
+    let baseline_y = area.bottom() - 1;
+    for x in area.left()..area.right() {
+        buf[(x, baseline_y)]
+            .set_symbol(block_symbol(1))
+            .set_style(style);
     }
 
     for (offset, value) in data[data.len().saturating_sub(visible_count)..]
@@ -520,6 +530,17 @@ mod tests {
         );
         // The right-most cell contains samples 8 and 9, both full-height.
         assert_eq!(buf[(2, 0)].symbol(), "\u{28ff}");
+    }
+
+    #[test]
+    fn bar_graph_draws_bottom_baseline_for_zero_values() {
+        let area = Rect::new(0, 0, 4, 2);
+        let mut buf = Buffer::empty(area);
+        paint_bar_graph(&mut buf, area, &[0.0, 0.0], Some(100.0), Color::Green);
+
+        for x in area.left()..area.right() {
+            assert_eq!(buf[(x, area.bottom() - 1)].symbol(), "▁");
+        }
     }
 
     #[test]

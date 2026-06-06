@@ -128,7 +128,7 @@ fn render_compact(
         theme,
     );
 
-    render_horizontal_separator(f, rows[1], theme);
+    render_titled_horizontal_separator(f, rows[1], "GPU Memory", theme);
 
     render_compact_section(
         f,
@@ -211,16 +211,28 @@ fn render_compact_section(
     );
 }
 
-fn render_horizontal_separator(f: &mut Frame, area: Rect, theme: &Theme) {
+fn render_titled_horizontal_separator(f: &mut Frame, area: Rect, title: &str, theme: &Theme) {
     if area.height == 0 {
         return;
     }
 
-    let style = Style::default().fg(theme.label);
+    let border_style = Style::default().fg(theme.border);
+    let title_style = Style::default().fg(theme.title);
     let y = area.y + area.height / 2;
     let buf = f.buffer_mut();
     for x in area.left()..area.right() {
-        buf[(x, y)].set_symbol("─").set_style(style);
+        buf[(x, y)].set_symbol("─").set_style(border_style);
+    }
+
+    let max_width = area.width.saturating_sub(2) as usize;
+    if max_width == 0 {
+        return;
+    }
+    let text = format!(" {title} ");
+    for (offset, ch) in text.chars().take(max_width).enumerate() {
+        buf[(area.x + 1 + offset as u16, y)]
+            .set_symbol(&ch.to_string())
+            .set_style(title_style);
     }
 }
 
@@ -253,7 +265,7 @@ impl CompactGpuStats {
         let name = devices
             .first()
             .map(|dev| compact_gpu_name(&dev.name))
-            .unwrap_or_else(|| "GPU".to_string());
+            .unwrap_or_else(|| "GPU Utilization".to_string());
 
         Self {
             count,
