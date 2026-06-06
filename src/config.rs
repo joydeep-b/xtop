@@ -125,6 +125,20 @@ pub enum WidgetKind {
     Network,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GpuMode {
+    Auto,
+    Compact,
+    PerDevice,
+}
+
+impl Default for GpuMode {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
 /// A size constraint for a layout slot. Accepts:
 ///   - "NN%"            -> Percentage
 ///   - "fill" / "min"   -> Fill(1)
@@ -243,6 +257,8 @@ pub struct GpuOpts {
     #[serde(default)]
     pub show_per_process: bool,
     #[serde(default)]
+    pub mode: GpuMode,
+    #[serde(default)]
     pub graph_style: Option<GraphStyle>,
 }
 
@@ -250,6 +266,7 @@ impl Default for GpuOpts {
     fn default() -> Self {
         Self {
             show_per_process: false,
+            mode: GpuMode::Auto,
             graph_style: None,
         }
     }
@@ -261,6 +278,9 @@ pub struct DiskOpts {
     /// Explicit device allow-list. Empty = auto (physical devices only).
     #[serde(default)]
     pub devices: Vec<String>,
+    /// ZFS pool names to monitor. Empty = auto-detect all imported pools.
+    #[serde(default)]
+    pub zfs_pools: Vec<String>,
     #[serde(default)]
     pub graph_style: Option<GraphStyle>,
 }

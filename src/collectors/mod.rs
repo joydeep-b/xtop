@@ -63,7 +63,11 @@ impl Monitor {
             cpu: cpu::CpuCollector::new(history),
             memory: memory::MemoryCollector::new(history),
             gpu: gpu::GpuCollector::new(history),
-            disk: disk::DiskCollector::new(history, config.widgets.disk.devices.clone()),
+            disk: disk::DiskCollector::new(
+                history,
+                config.widgets.disk.devices.clone(),
+                config.widgets.disk.zfs_pools.clone(),
+            ),
             net: net::NetCollector::new(history, config.widgets.network.interfaces.clone()),
             last: Instant::now(),
         }

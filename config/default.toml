@@ -20,15 +20,12 @@ graph_style = "braille" # braille / bar
 [layout]
 direction = "vertical"
 children = [
-  { size = "70%", split = { direction = "horizontal", children = [
+  { size = "60%", split = { direction = "horizontal", children = [
       { size = "50%", split = { direction = "vertical", children = [
           { size = "50%", widget = "cpu" },
           { size = "50%", widget = "memory" },
       ] } },
-      { size = "50%", split = { direction = "vertical", children = [
-          { size = "50%", widget = "gpu_util" },
-          { size = "50%", widget = "gpu_memory" },
-      ] } },
+      { size = "50%", widget = "gpu" },
   ] } },
   { size = "fill", split = { direction = "horizontal", children = [
       { size = "50%", widget = "network" },
@@ -36,21 +33,30 @@ children = [
   ] } },
 ]
 
+[widgets.cpu]
+graph_style = "bar"
+
 [widgets.gpu]
+graph_style = "bar"
+mode = "auto"            # auto / compact / per_device
 show_per_process = false
 
 [widgets.memory]
+graph_style = "bar"
 show_swap = false       # show swap usage text + gauge
 show_usage_bar = false  # show the current RAM usage bar above the history graph
 
-# Names are block devices as in /proc/diskstats (e.g. nvme0n1, sda, dm-0),
+# Block devices as in /proc/diskstats (e.g. nvme0n1, sda, dm-0),
 # NOT mountpoints. Empty list = auto (whole disks; loop*/ram* hidden).
-# On this machine: "/" lives on nvme0n1 (LVM), "/data" on sda.
+# ZFS pools are monitored via /proc/spl/kstat/zfs; empty = auto-detect all
+# imported pools. On this machine: "/" lives on nvme3n1 (block device) and
+# /scratch is a ZFS pool named "scratch".
 [widgets.disk]
-devices = ["nvme0n1", "sda"]
+devices   = ["nvme3n1"]
+zfs_pools = ["scratch"]  # [] = auto-detect all imported ZFS pools
 graph_style = "bar"
 
 # Empty list = all non-loopback interfaces.
 [widgets.network]
-interfaces = ["eno1"]
+interfaces = ["enp48s0f1", "wg0"]
 graph_style = "bar"

@@ -1,7 +1,7 @@
 # xtop Makefile - thin wrapper around cargo.
 
 CARGO   ?= cargo
-PREFIX  ?= /usr/local
+PREFIX  ?= $(HOME)/.local
 BINDIR  ?= $(PREFIX)/bin
 BIN     := xtop
 
