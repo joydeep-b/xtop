@@ -2,13 +2,13 @@
 
 A lightweight, configurable, btop-like terminal system monitor written in Rust.
 
-- Multi-core CPU (joint all-core utilization + load average; optional per-core grid)
-- NVIDIA GPU via NVML (utilization graph + VRAM usage graph, temperature, power)
-  with graceful fallback when no driver/GPU is present
-- Memory (RAM + swap)
-- Disk IO (per physical device, read/write rates)
+- Multi-core CPU (joint all-core utilization, load average, and optional temperature)
+- NVIDIA GPU via NVML (utilization + VRAM history, temperature, power), with
+  auto compact/per-device rendering and graceful fallback when no driver/GPU is present
+- Memory (RAM + optional swap and current-usage bar)
+- Disk IO (physical block devices plus optional ZFS pool counters)
 - Network IO (per interface, down/up rates and totals)
-- **Fully configurable widget layout** via a TOML config file
+- **Fully configurable widget layout** and selectable layout profiles via TOML
 
 It samples Linux `/proc` and `/sys` directly (no heavy metrics dependency) and
 renders with [`ratatui`](https://ratatui.rs) + `crossterm`, producing a small
@@ -36,21 +36,33 @@ Headless / scripting one-shot text dump (no terminal required):
 
 ```bash
 xtop --probe
+# or
+xtop --once
 ```
 
 ### Controls
 
-| Key            | Action       |
-| -------------- | ------------ |
-| `q` / `Esc`    | quit         |
-| `Ctrl-C`       | quit         |
-| `space` / `p`  | pause/resume |
+| Key             | Action                 |
+| --------------- | ---------------------- |
+| `q`             | quit                   |
+| `Esc`           | quit, or close chooser |
+| `Ctrl-C`        | quit                   |
+| `space` / `p`   | pause/resume           |
+| `l`             | choose layout/profile  |
+| `j`/`k`, arrows | move in chooser        |
+| `Enter`         | select layout/profile  |
 
 ## Configuration
 
-xtop reads `~/.config/xtop/config.toml` (XDG). Any key you omit falls back to
-the built-in defaults (see [`config/default.toml`](config/default.toml)), so a
-partial file is fine.
+On first startup, xtop creates `~/.config/xtop/default.toml` (XDG) from the
+built-in defaults (see [`config/default.toml`](config/default.toml)). Any key
+you omit falls back to the built-in defaults, so a partial file is fine.
+
+Every TOML file in `~/.config/xtop/*.toml` is a selectable layout/config profile
+except `selected.toml`, which xtop manages as a symlink to the active profile.
+Use `l` in the TUI to choose a profile; selecting one updates `selected.toml` so
+the same profile is used on restart. If `selected.toml` is absent, xtop loads
+`default.toml`.
 
 ### Layout: a recursive split tree
 
@@ -66,9 +78,9 @@ child carries a `size`:
 | `{ ratio = [a,b]}` | proportional share                       |
 
 Available widgets: `cpu`, `memory`, `gpu`, `gpu_util`, `gpu_memory`,
-`disk`, `network`. `gpu` keeps the combined utilization + memory view for
-custom layouts; `gpu_util` and `gpu_memory` let layouts split them into matching
-panels.
+`disk`, `network`. `gpu` renders utilization and memory together, switching to a
+compact aggregate view automatically when many GPUs are present. `gpu_util` and
+`gpu_memory` let layouts split those graphs into matching panels.
 
 ```toml
 [settings]
@@ -98,11 +110,35 @@ children = [
 
 [widgets.disk]
 devices = []            # empty = auto (physical devices only)
+zfs_pools = []          # empty = auto-detect imported ZFS pools
 graph_style = "bar"     # override global graph_style
 
 [widgets.network]
 interfaces = []         # empty = all non-loopback interfaces
 graph_style = "bar"     # override global graph_style
+```
+
+### Widget options
+
+Each widget can override the global graph style with `graph_style = "braille"`
+or `graph_style = "bar"`.
+
+```toml
+[widgets.cpu]
+graph_style = "bar"
+
+[widgets.memory]
+graph_style = "bar"
+show_swap = true        # show swap usage text + gauge
+show_usage_bar = true   # show the current RAM usage bar above history
+
+[widgets.gpu]
+graph_style = "bar"
+mode = "auto"           # auto / compact / per_device
+
+[widgets.disk]
+devices = ["nvme0n1"]   # block devices from /proc/diskstats; [] = auto
+zfs_pools = ["tank"]    # ZFS pools from /proc/spl/kstat/zfs; [] = auto
 ```
 
 Want CPU stacked over GPU on the left and memory taking the whole right half?
@@ -127,6 +163,7 @@ src/
   main.rs            entry point, event loop, sampler thread, --probe mode
   config.rs          TOML config + recursive layout-tree model
   layout.rs          resolves the layout tree into terminal rects
+  panel.rs           shared panel borders and titles
   event.rs           keyboard input -> actions
   theme.rs           color palettes
   util.rs            byte/rate formatting
