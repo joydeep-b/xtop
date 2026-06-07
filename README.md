@@ -15,7 +15,8 @@ renders with [`ratatui`](https://ratatui.rs) + `crossterm`, producing a small
 (~1 MB) statically-strippable binary with minimal idle overhead.
 
 > Platform: Linux only. NVIDIA GPU support requires the NVIDIA driver + NVML
-> (`libnvidia-ml.so`); without it the GPU widget shows an "unavailable" notice.
+> (`libnvidia-ml.so` or `libnvidia-ml.so.1`); without it the GPU widget shows an
+> "unavailable" notice.
 
 ## Screenshot
 
@@ -155,6 +156,21 @@ children = [
   { size = "50%", widget = "memory" },
 ]
 ```
+
+### NVIDIA / GH200 notes
+
+GPU monitoring uses NVML from the NVIDIA driver stack; the CUDA toolkit is not
+required. Some driver installs expose only the versioned NVML soname
+(`libnvidia-ml.so.1`) instead of the unversioned development symlink
+(`libnvidia-ml.so`). xtop tries both on Linux. If your cluster uses a custom
+driver path, set an explicit override:
+
+```bash
+XTOP_NVML_LIB=/lib64/libnvidia-ml.so.1 ./target/release/xtop --probe
+```
+
+If NVML loads but the driver is not accessible, validate from a GPU allocation
+and check `nvidia-smi -L`. 
 
 ## Project layout
 

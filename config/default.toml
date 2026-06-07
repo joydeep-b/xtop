@@ -50,14 +50,13 @@ show_usage_bar = false  # show the current RAM usage bar above the history graph
 # Block devices as in /proc/diskstats (e.g. nvme0n1, sda, dm-0),
 # NOT mountpoints. Empty list = auto (whole disks; loop*/ram* hidden).
 # ZFS pools are monitored via /proc/spl/kstat/zfs; empty = auto-detect all
-# imported pools. On this machine: "/" lives on nvme3n1 (block device) and
-# /scratch is a ZFS pool named "scratch".
+# imported pools.
 [widgets.disk]
-devices   = ["nvme3n1"]
-zfs_pools = ["scratch"]  # [] = auto-detect all imported ZFS pools
+devices   = []
+zfs_pools = []  # [] = auto-detect all imported ZFS pools
 graph_style = "bar"
 
 # Empty list = all non-loopback interfaces.
 [widgets.network]
-interfaces = ["enp48s0f1", "wg0"]
+interfaces = []
 graph_style = "bar"

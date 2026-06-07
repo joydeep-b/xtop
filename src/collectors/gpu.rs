@@ -2,6 +2,9 @@ use super::History;
 use nvml_wrapper::enum_wrappers::device::TemperatureSensor;
 use nvml_wrapper::Nvml;
 use std::collections::HashMap;
+use std::ffi::OsStr;
+
+const NVML_LIB_ENV: &str = "XTOP_NVML_LIB";
 
 #[derive(Debug, Clone)]
 pub struct GpuDevice {
@@ -34,9 +37,9 @@ pub struct GpuCollector {
 impl GpuCollector {
     pub fn new(history: usize) -> Self {
         // NVML init can fail (no driver / no GPU). Degrade gracefully.
-        let (nvml, init_error) = match Nvml::init() {
+        let (nvml, init_error) = match init_nvml() {
             Ok(n) => (Some(n), None),
-            Err(e) => (None, Some(e.to_string())),
+            Err(e) => (None, Some(e)),
         };
         GpuCollector {
             history,
@@ -121,4 +124,45 @@ impl GpuCollector {
             devices,
         }
     }
+}
+
+fn init_nvml() -> Result<Nvml, String> {
+    let mut attempts = Vec::new();
+
+    if let Some(path) = std::env::var_os(NVML_LIB_ENV).filter(|p| !p.is_empty()) {
+        match init_nvml_from_path(&path) {
+            Ok(nvml) => return Ok(nvml),
+            Err(error) => attempts.push(format!(
+                "{NVML_LIB_ENV}={} ({error})",
+                path.to_string_lossy()
+            )),
+        }
+    }
+
+    match Nvml::init() {
+        Ok(nvml) => return Ok(nvml),
+        Err(error) => attempts.push(format!("libnvidia-ml.so ({error})")),
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        for path in ["libnvidia-ml.so.1", "/lib64/libnvidia-ml.so.1"] {
+            match init_nvml_from_path(OsStr::new(path)) {
+                Ok(nvml) => return Ok(nvml),
+                Err(error) => attempts.push(format!("{path} ({error})")),
+            }
+        }
+    }
+
+    Err(format!(
+        "unable to initialize NVML after trying: {}",
+        attempts.join("; ")
+    ))
+}
+
+fn init_nvml_from_path(path: &OsStr) -> Result<Nvml, String> {
+    Nvml::builder()
+        .lib_path(path)
+        .init()
+        .map_err(|error| error.to_string())
 }
