@@ -26,14 +26,36 @@ tree described below.
 
 ![xtop terminal dashboard](assets/xtop-screenshot.png)
 
-## Build & run
+## Quickstart: Compile, Install, Run
+
+Prerequisite: install Rust with `cargo` using
+[rustup](https://rust-lang.org/tools/install/).
 
 ```bash
-cargo build --release
-./target/release/xtop
+make install
+xtop
 ```
 
-Headless / scripting one-shot text dump (no terminal required):
+`make install` compiles an optimized release binary and installs it to
+`~/.local/bin/xtop` by default. To install somewhere else, set `PREFIX`:
+
+```bash
+make install PREFIX=/usr/local
+```
+
+For development, compile a debug build with:
+
+```bash
+make
+```
+
+Build and run the TUI directly with:
+
+```bash
+make run
+```
+
+For a headless / scripting one-shot text dump (no terminal required):
 
 ```bash
 xtop --probe
