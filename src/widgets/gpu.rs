@@ -387,6 +387,7 @@ fn render_compact(
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_compact_section(
     f: &mut Frame,
     area: Rect,

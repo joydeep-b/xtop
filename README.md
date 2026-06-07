@@ -41,6 +41,29 @@ xtop --probe
 xtop --once
 ```
 
+## Release binaries
+
+Tagged releases publish downloadable binaries as GitHub Release assets; the
+compiled artifacts are not committed to this repository.
+
+The Linux amd64 musl build uses Rust's `x86_64-unknown-linux-musl` target and is
+packaged as:
+
+```text
+xtop-v0.1.0-x86_64-unknown-linux-musl.tar.gz
+```
+
+For maintainers, publish a release by creating and pushing a version tag that
+matches the crate version:
+
+```bash
+git tag -a v0.1.0 -m "Release v0.1.0"
+git push origin v0.1.0
+```
+
+The release workflow builds and uploads the musl asset automatically. GPU
+metrics still require the host NVIDIA driver and NVML library at runtime.
+
 ### Controls
 
 | Key             | Action                 |

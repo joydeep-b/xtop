@@ -51,6 +51,7 @@ pub struct SparklineLabels<'a> {
     pub x_right: &'a str,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn render_labeled_graph(
     f: &mut Frame,
     area: Rect,
@@ -166,6 +167,7 @@ pub fn render_graph_pair(
     render_vertical_separator(f, rects[1], theme);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn render_labeled_sparkline(
     f: &mut Frame,
     area: Rect,

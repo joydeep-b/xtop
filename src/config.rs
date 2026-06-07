@@ -72,17 +72,12 @@ impl Default for Settings {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum GraphStyle {
+    #[default]
     Braille,
     Bar,
-}
-
-impl Default for GraphStyle {
-    fn default() -> Self {
-        Self::Braille
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -148,18 +143,13 @@ pub enum WidgetKind {
     Network,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GpuMode {
+    #[default]
     Auto,
     Compact,
     PerDevice,
-}
-
-impl Default for GpuMode {
-    fn default() -> Self {
-        Self::Auto
-    }
 }
 
 /// A size constraint for a layout slot. Accepts:
@@ -226,7 +216,7 @@ pub struct Widgets {
     pub network: NetworkOpts,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CpuOpts {
     /// Deprecated: the CPU panel now always shows joint all-core utilization.
@@ -235,15 +225,6 @@ pub struct CpuOpts {
     pub show_per_core: bool,
     #[serde(default)]
     pub graph_style: Option<GraphStyle>,
-}
-
-impl Default for CpuOpts {
-    fn default() -> Self {
-        Self {
-            show_per_core: false,
-            graph_style: None,
-        }
-    }
 }
 
 #[derive(Debug, Deserialize)]

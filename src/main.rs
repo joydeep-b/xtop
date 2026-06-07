@@ -409,7 +409,7 @@ fn render_profile_chooser(f: &mut Frame, area: Rect, app: &App) {
         return;
     }
 
-    let popup_width = area.width.saturating_sub(2).min(56).max(12);
+    let popup_width = area.width.saturating_sub(2).clamp(12, 56);
     let popup_height = (app.profiles.len() as u16 + 4)
         .min(area.height.saturating_sub(2))
         .max(5);
