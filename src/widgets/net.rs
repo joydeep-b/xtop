@@ -51,6 +51,7 @@ pub fn render(f: &mut Frame, area: Rect, snap: &Snapshot, config: &Config, theme
                 .graph_style
                 .unwrap_or(config.settings.graph_style),
             theme,
+            None,
         );
     }
 }

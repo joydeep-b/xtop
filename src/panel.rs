@@ -212,6 +212,8 @@ fn title(kind: WidgetKind) -> &'static str {
         WidgetKind::Gpu => "GPU Utilization",
         WidgetKind::GpuUtil => "GPU Utilization",
         WidgetKind::GpuMemory => "GPU Memory",
+        WidgetKind::GpuPcie => "GPU PCIe",
+        WidgetKind::GpuNvlink => "GPU NVLink",
         WidgetKind::Disk => "Disk IO",
         WidgetKind::Network => "Network IO",
     }

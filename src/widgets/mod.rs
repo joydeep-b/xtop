@@ -29,6 +29,8 @@ pub fn render(
         WidgetKind::Gpu => gpu::render(f, area, snap, config, theme),
         WidgetKind::GpuUtil => gpu::render_util(f, area, snap, config, theme),
         WidgetKind::GpuMemory => gpu::render_memory(f, area, snap, config, theme),
+        WidgetKind::GpuPcie => gpu::render_pcie(f, area, snap, config, theme),
+        WidgetKind::GpuNvlink => gpu::render_nvlink(f, area, snap, config, theme),
         WidgetKind::Disk => disk::render(f, area, snap, config, theme),
         WidgetKind::Network => net::render(f, area, snap, config, theme),
     }
@@ -85,6 +87,12 @@ pub fn history_window_label(
 ) -> String {
     let label_gutter_width = 5usize; // "100%" plus one spacer column.
     let plot_width = usize::from(labeled_area_width).saturating_sub(label_gutter_width);
+    history_span_label(sample_count, plot_width, update_ms)
+}
+
+/// Like `history_window_label`, but takes the plot width directly (no y-axis
+/// gutter is subtracted). Used by graphs that fill their full cell width.
+fn history_span_label(sample_count: usize, plot_width: usize, update_ms: u64) -> String {
     let visible_samples = sample_count.min(plot_width.saturating_mul(2));
     let elapsed_ms = visible_samples.saturating_sub(1) as u64 * update_ms;
     format!("-{}", format_duration(elapsed_ms))
@@ -96,6 +104,7 @@ pub fn render_graph_group(
     graphs: &[Graph<'_>],
     graph_style: GraphStyle,
     theme: &Theme,
+    time_axis: Option<u64>,
 ) {
     if graphs.is_empty() || area.width == 0 || area.height == 0 {
         return;
@@ -123,7 +132,7 @@ pub fn render_graph_group(
 
     for (index, (graph, rect)) in graphs.iter().zip(rects.iter()).enumerate() {
         let cell = compact_graph_cell(f, *rect, index > 0, theme);
-        render_graph_cell(f, cell, graph, graph_style);
+        render_graph_cell(f, cell, graph, graph_style, time_axis, theme);
     }
 }
 
@@ -139,7 +148,7 @@ pub fn render_graph_pair(
         return;
     }
     if area.width < 3 {
-        render_graph_cell(f, area, left, graph_style);
+        render_graph_cell(f, area, left, graph_style, None, theme);
         return;
     }
 
@@ -152,8 +161,8 @@ pub fn render_graph_pair(
         ])
         .split(area);
 
-    render_graph_cell(f, rects[0], left, graph_style);
-    render_graph_cell(f, rects[2], right, graph_style);
+    render_graph_cell(f, rects[0], left, graph_style, None, theme);
+    render_graph_cell(f, rects[2], right, graph_style, None, theme);
     render_vertical_separator(f, rects[1], theme);
 }
 
@@ -430,7 +439,14 @@ pub fn render_vertical_separator(f: &mut Frame, area: Rect, theme: &Theme) {
     }
 }
 
-fn render_graph_cell(f: &mut Frame, area: Rect, graph: &Graph<'_>, graph_style: GraphStyle) {
+fn render_graph_cell(
+    f: &mut Frame,
+    area: Rect,
+    graph: &Graph<'_>,
+    graph_style: GraphStyle,
+    time_axis: Option<u64>,
+    theme: &Theme,
+) {
     if area.width == 0 || area.height == 0 {
         return;
     }
@@ -447,7 +463,22 @@ fn render_graph_cell(f: &mut Frame, area: Rect, graph: &Graph<'_>, graph_style: 
         &graph.title,
         Style::default().fg(graph.color),
     );
-    let graph_area = Rect::new(area.x, area.y + 1, area.width, area.height - 1);
+
+    // Reserve a bottom row for the time scale when requested and there is room
+    // for a title row, at least one graph row, and the axis row.
+    let mut graph_height = area.height - 1;
+    let axis_row = match time_axis {
+        Some(update_ms) if graph_height >= 2 => {
+            graph_height -= 1;
+            Some((
+                Rect::new(area.x, area.y + 1 + graph_height, area.width, 1),
+                update_ms,
+            ))
+        }
+        _ => None,
+    };
+
+    let graph_area = Rect::new(area.x, area.y + 1, area.width, graph_height);
     render_history_graph(
         f,
         graph_area,
@@ -456,6 +487,25 @@ fn render_graph_cell(f: &mut Frame, area: Rect, graph: &Graph<'_>, graph_style: 
         graph.color,
         graph_style,
     );
+
+    if let Some((axis, update_ms)) = axis_row {
+        let x_left = history_span_label(graph.data.len(), usize::from(axis.width), update_ms);
+        let label_style = Style::default().fg(theme.label);
+        let buf = f.buffer_mut();
+        write_text(buf, axis.x, axis.y, &x_left, label_style);
+        let x_right = "now";
+        let left_width = x_left.chars().count() as u16;
+        let right_width = x_right.chars().count() as u16;
+        if right_width < axis.width && left_width + right_width + 1 < axis.width {
+            write_text(
+                buf,
+                axis.right() - right_width,
+                axis.y,
+                x_right,
+                label_style,
+            );
+        }
+    }
 }
 
 fn write_right_aligned(buf: &mut Buffer, x: u16, y: u16, width: u16, text: &str, style: Style) {

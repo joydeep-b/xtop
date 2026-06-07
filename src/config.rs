@@ -130,6 +130,10 @@ pub enum WidgetKind {
     GpuUtil,
     #[serde(rename = "gpu_memory", alias = "gpu_mem")]
     GpuMemory,
+    #[serde(rename = "gpu_pcie")]
+    GpuPcie,
+    #[serde(rename = "gpu_nvlink")]
+    GpuNvlink,
     Disk,
     Network,
 }

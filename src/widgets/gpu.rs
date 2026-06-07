@@ -1,9 +1,9 @@
-use super::{render_labeled_graph, render_labeled_sparkline};
+use super::{render_graph_group, render_labeled_graph, render_labeled_sparkline, Graph};
 use crate::collectors::gpu::GpuDevice;
 use crate::collectors::Snapshot;
 use crate::config::{Config, GpuMode};
 use crate::theme::Theme;
-use crate::util::fmt_bytes;
+use crate::util::{fmt_bytes, fmt_rate};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
@@ -36,6 +36,248 @@ pub fn render_util(f: &mut Frame, area: Rect, snap: &Snapshot, config: &Config, 
 
 pub fn render_memory(f: &mut Frame, area: Rect, snap: &Snapshot, config: &Config, theme: &Theme) {
     render_single_graph(f, area, snap, config, theme, GpuGraph::Memory);
+}
+
+pub fn render_pcie(f: &mut Frame, area: Rect, snap: &Snapshot, config: &Config, theme: &Theme) {
+    render_transfer(f, area, snap, config, theme, GpuTransfer::Pcie);
+}
+
+pub fn render_nvlink(f: &mut Frame, area: Rect, snap: &Snapshot, config: &Config, theme: &Theme) {
+    render_transfer(f, area, snap, config, theme, GpuTransfer::Nvlink);
+}
+
+#[derive(Debug, Clone, Copy)]
+enum GpuTransfer {
+    Pcie,
+    Nvlink,
+}
+
+fn render_transfer(
+    f: &mut Frame,
+    area: Rect,
+    snap: &Snapshot,
+    config: &Config,
+    theme: &Theme,
+    transfer: GpuTransfer,
+) {
+    let gpu = &snap.gpu;
+
+    if !gpu.available || gpu.devices.is_empty() {
+        render_unavailable(f, area, gpu.error.as_deref(), theme);
+        return;
+    }
+
+    let graph_style = config
+        .widgets
+        .gpu
+        .graph_style
+        .unwrap_or(config.settings.graph_style);
+
+    let compact = match config.widgets.gpu.mode {
+        GpuMode::Compact => true,
+        GpuMode::PerDevice => false,
+        GpuMode::Auto => gpu.devices.len() >= COMPACT_DEVICE_THRESHOLD,
+    };
+
+    let update_ms = config.settings.update_ms;
+    if compact {
+        render_transfer_compact(
+            f,
+            area,
+            &gpu.devices,
+            transfer,
+            graph_style,
+            theme,
+            update_ms,
+        );
+    } else {
+        render_transfer_per_device(
+            f,
+            area,
+            &gpu.devices,
+            transfer,
+            graph_style,
+            theme,
+            update_ms,
+        );
+    }
+}
+
+/// One stacked Rx/Tx graph pair per device. Best for a handful of GPUs.
+fn render_transfer_per_device(
+    f: &mut Frame,
+    area: Rect,
+    devices: &[GpuDevice],
+    transfer: GpuTransfer,
+    graph_style: crate::config::GraphStyle,
+    theme: &Theme,
+    update_ms: u64,
+) {
+    let slices = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(vec![
+            Constraint::Ratio(1, devices.len() as u32);
+            devices.len()
+        ])
+        .split(area);
+
+    for (index, (dev, slot)) in devices.iter().zip(slices.iter()).enumerate() {
+        let label = format!("GPU{index}");
+        if !transfer.available(dev) {
+            render_centered_notice(f, *slot, &format!("{label}: No {}", transfer.name()), theme);
+            continue;
+        }
+        render_graph_group(
+            f,
+            *slot,
+            &[
+                Graph {
+                    title: format!(
+                        "{label} {} Rx {}",
+                        transfer.name(),
+                        fmt_rate(transfer.rx_bps(dev))
+                    ),
+                    data: transfer.rx_history(dev),
+                    max: None,
+                    color: theme.rx,
+                },
+                Graph {
+                    title: format!("Tx {}", fmt_rate(transfer.tx_bps(dev))),
+                    data: transfer.tx_history(dev),
+                    max: None,
+                    color: theme.tx,
+                },
+            ],
+            graph_style,
+            theme,
+            Some(update_ms),
+        );
+    }
+}
+
+/// Aggregate view: total Rx/Tx summed across all (available) GPUs, with a
+/// single Rx/Tx graph pair. Used automatically when many GPUs are present.
+fn render_transfer_compact(
+    f: &mut Frame,
+    area: Rect,
+    devices: &[GpuDevice],
+    transfer: GpuTransfer,
+    graph_style: crate::config::GraphStyle,
+    theme: &Theme,
+    update_ms: u64,
+) {
+    let available: Vec<&GpuDevice> = devices.iter().filter(|d| transfer.available(d)).collect();
+    if available.is_empty() {
+        render_centered_notice(f, area, &format!("No {}", transfer.name()), theme);
+        return;
+    }
+
+    let rx_total: f64 = available.iter().map(|d| transfer.rx_bps(d)).sum();
+    let tx_total: f64 = available.iter().map(|d| transfer.tx_bps(d)).sum();
+
+    let rx_slices: Vec<&[f64]> = available.iter().map(|d| transfer.rx_history(d)).collect();
+    let tx_slices: Vec<&[f64]> = available.iter().map(|d| transfer.tx_history(d)).collect();
+    let rx_hist = sum_history(&rx_slices);
+    let tx_hist = sum_history(&tx_slices);
+
+    render_graph_group(
+        f,
+        area,
+        &[
+            Graph {
+                title: format!(
+                    "{}x {} Rx {}",
+                    available.len(),
+                    transfer.name(),
+                    fmt_rate(rx_total)
+                ),
+                data: &rx_hist,
+                max: None,
+                color: theme.rx,
+            },
+            Graph {
+                title: format!("Tx {}", fmt_rate(tx_total)),
+                data: &tx_hist,
+                max: None,
+                color: theme.tx,
+            },
+        ],
+        graph_style,
+        theme,
+        Some(update_ms),
+    );
+}
+
+/// Element-wise sum of several history series, aligned on their newest samples
+/// (shorter series clip the older end). Returns an empty Vec if any series is
+/// empty or none are provided.
+fn sum_history(histories: &[&[f64]]) -> Vec<f64> {
+    let Some(len) = histories.iter().map(|h| h.len()).min() else {
+        return Vec::new();
+    };
+    if len == 0 {
+        return Vec::new();
+    }
+    (0..len)
+        .map(|offset| {
+            histories
+                .iter()
+                .map(|h| h[h.len() - len + offset])
+                .sum::<f64>()
+        })
+        .collect()
+}
+
+impl GpuTransfer {
+    fn name(self) -> &'static str {
+        match self {
+            GpuTransfer::Pcie => "PCIe",
+            GpuTransfer::Nvlink => "NVLink",
+        }
+    }
+
+    fn available(self, dev: &GpuDevice) -> bool {
+        match self {
+            GpuTransfer::Pcie => true,
+            GpuTransfer::Nvlink => dev.nvlink_available,
+        }
+    }
+
+    fn rx_bps(self, dev: &GpuDevice) -> f64 {
+        match self {
+            GpuTransfer::Pcie => dev.pcie_rx_bps,
+            GpuTransfer::Nvlink => dev.nvlink_rx_bps,
+        }
+    }
+
+    fn tx_bps(self, dev: &GpuDevice) -> f64 {
+        match self {
+            GpuTransfer::Pcie => dev.pcie_tx_bps,
+            GpuTransfer::Nvlink => dev.nvlink_tx_bps,
+        }
+    }
+
+    fn rx_history(self, dev: &GpuDevice) -> &[f64] {
+        match self {
+            GpuTransfer::Pcie => &dev.pcie_rx_history,
+            GpuTransfer::Nvlink => &dev.nvlink_rx_history,
+        }
+    }
+
+    fn tx_history(self, dev: &GpuDevice) -> &[f64] {
+        match self {
+            GpuTransfer::Pcie => &dev.pcie_tx_history,
+            GpuTransfer::Nvlink => &dev.nvlink_tx_history,
+        }
+    }
+}
+
+fn render_centered_notice(f: &mut Frame, area: Rect, msg: &str, theme: &Theme) {
+    let p = Paragraph::new(msg.to_string())
+        .style(Style::default().fg(theme.label))
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true });
+    f.render_widget(p, area);
 }
 
 fn render_split(f: &mut Frame, area: Rect, snap: &Snapshot, config: &Config, theme: &Theme) {
