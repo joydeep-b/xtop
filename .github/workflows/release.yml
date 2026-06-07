@@ -9,9 +9,19 @@ permissions:
   contents: write
 
 jobs:
-  linux-musl-amd64:
-    name: Linux amd64 musl
-    runs-on: ubuntu-latest
+  build:
+    name: Linux amd64 ${{ matrix.libc }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            libc: glibc
+            runner: ubuntu-22.04
+          - target: x86_64-unknown-linux-musl
+            libc: musl
+            runner: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -20,9 +30,10 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-unknown-linux-musl
+          targets: ${{ matrix.target }}
 
       - name: Install musl tools
+        if: matrix.libc == 'musl'
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Check formatting
@@ -34,19 +45,38 @@ jobs:
       - name: Test
         run: cargo test
 
-      - name: Build musl release
-        run: cargo build --release --target x86_64-unknown-linux-musl
+      - name: Build release
+        run: cargo build --release --target ${{ matrix.target }}
 
       - name: Package release asset
         env:
-          ASSET_NAME: xtop-${{ github.ref_name }}-x86_64-unknown-linux-musl.tar.gz
+          ASSET_NAME: xtop-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
         run: |
           mkdir -p dist
-          cp target/x86_64-unknown-linux-musl/release/xtop dist/xtop
+          cp target/${{ matrix.target }}/release/xtop dist/xtop
           chmod 755 dist/xtop
           tar -czf "$ASSET_NAME" -C dist xtop
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xtop-${{ matrix.target }}
+          path: xtop-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-release
+          merge-multiple: true
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: xtop-${{ github.ref_name }}-x86_64-unknown-linux-musl.tar.gz
+          files: dist-release/*.tar.gz

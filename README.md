@@ -44,25 +44,30 @@ xtop --once
 ## Release binaries
 
 Tagged releases publish downloadable binaries as GitHub Release assets; the
-compiled artifacts are not committed to this repository.
+compiled artifacts are not committed to this repository. Download the newest
+assets from the [latest release](https://github.com/joydeep-b/xtop/releases/latest).
 
-The Linux amd64 musl build uses Rust's `x86_64-unknown-linux-musl` target and is
-packaged as:
+Linux amd64 releases include two builds:
 
 ```text
-xtop-v0.1.0-x86_64-unknown-linux-musl.tar.gz
+xtop-v0.1.1-x86_64-unknown-linux-gnu.tar.gz   # GPU-capable; needs glibc + NVIDIA driver/NVML
+xtop-v0.1.1-x86_64-unknown-linux-musl.tar.gz  # More portable; NVIDIA GPU metrics unavailable
 ```
+
+Use the GNU/glibc build on NVIDIA systems. The musl build is useful for
+CPU-only/minimal systems, but its static libc configuration does not support the
+dynamic library loading needed to open NVML.
 
 For maintainers, publish a release by creating and pushing a version tag that
 matches the crate version:
 
 ```bash
-git tag -a v0.1.0 -m "Release v0.1.0"
-git push origin v0.1.0
+git tag -a v0.1.1 -m "Release v0.1.1"
+git push origin v0.1.1
 ```
 
-The release workflow builds and uploads the musl asset automatically. GPU
-metrics still require the host NVIDIA driver and NVML library at runtime.
+The release workflow builds and uploads both assets automatically. GPU metrics
+still require the host NVIDIA driver and NVML library at runtime.
 
 ### Controls
 
