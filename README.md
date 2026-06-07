@@ -79,9 +79,23 @@ child carries a `size`:
 | `{ ratio = [a,b]}` | proportional share                       |
 
 Available widgets: `cpu`, `memory`, `gpu`, `gpu_util`, `gpu_memory`,
-`disk`, `network`. `gpu` renders utilization and memory together, switching to a
-compact aggregate view automatically when many GPUs are present. `gpu_util` and
-`gpu_memory` let layouts split those graphs into matching panels.
+`gpu_pcie`, `gpu_nvlink`, `disk`, `network`. `gpu` renders utilization and
+memory together, switching to a compact aggregate view automatically when many
+GPUs are present. `gpu_util` and `gpu_memory` let layouts split those graphs
+into matching panels. `gpu_pcie` and `gpu_nvlink` graph PCIe and NVLink transfer
+rates (Rx/Tx); like `gpu`, they show one graph pair per device and switch to a
+compact aggregate view (totals summed across GPUs) automatically when many GPUs
+are present. They honor the `widgets.gpu.mode` setting (`auto` / `compact` /
+`per_device`).
+
+> PCIe throughput comes from NVML as an instantaneous ~20 ms sample (not an
+> average over the update interval), so the graph is a coarse estimate rather
+> than an integrated rate. NVLink uses NVML's modern aggregate throughput
+> counters; `gpu_nvlink` shows "No NVLink" on devices/drivers without it.
+
+These GPU transfer widgets are not in the default layout. To try them, copy the
+bundled [`config/gpu-detail.toml`](config/gpu-detail.toml) example into
+`~/.config/xtop/` and select it with `l`.
 
 ```toml
 [settings]

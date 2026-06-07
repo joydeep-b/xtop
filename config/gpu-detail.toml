@@ -1,0 +1,37 @@
+# xtop "GPU detail" example profile.
+# Copy this file into ~/.config/xtop/ (e.g. ~/.config/xtop/gpu-detail.toml),
+# then press `l` in the TUI to select it. Any keys you omit fall back to the
+# built-in defaults, so this only needs to override the layout.
+#
+# This profile adds the PCIe and NVLink transfer widgets next to the GPU panel.
+# NVLink panels show "No NVLink" on hardware/drivers without NVLink.
+
+[settings]
+update_ms = 1000
+history   = 240
+theme     = "default"
+graph_style = "braille"
+
+[layout]
+direction = "vertical"
+children = [
+  { size = "55%", split = { direction = "horizontal", children = [
+      { size = "34%", split = { direction = "vertical", children = [
+          { size = "50%", widget = "cpu" },
+          { size = "50%", widget = "memory" },
+      ] } },
+      { size = "33%", widget = "gpu" },
+      { size = "33%", split = { direction = "vertical", children = [
+          { size = "50%", widget = "gpu_pcie" },
+          { size = "50%", widget = "gpu_nvlink" },
+      ] } },
+  ] } },
+  { size = "fill", split = { direction = "horizontal", children = [
+      { size = "50%", widget = "network" },
+      { size = "50%", widget = "disk" },
+  ] } },
+]
+
+[widgets.gpu]
+graph_style = "bar"
+mode = "auto"
