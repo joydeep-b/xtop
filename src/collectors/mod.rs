@@ -82,7 +82,7 @@ impl Monitor {
         Snapshot {
             cpu: self.cpu.update(),
             memory: self.memory.update(),
-            gpu: self.gpu.update(),
+            gpu: self.gpu.update(dt),
             disk: self.disk.update(dt),
             net: self.net.update(dt),
         }

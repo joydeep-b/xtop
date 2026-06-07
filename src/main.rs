@@ -213,6 +213,20 @@ fn probe(config: &Config) -> Result<()> {
                 d.temp_c,
                 d.power_w
             );
+            println!(
+                "  PCIe: Rx {} Tx {}",
+                fmt_rate(d.pcie_rx_bps),
+                fmt_rate(d.pcie_tx_bps)
+            );
+            if d.nvlink_available {
+                println!(
+                    "  NVLink: Rx {} Tx {}",
+                    fmt_rate(d.nvlink_rx_bps),
+                    fmt_rate(d.nvlink_tx_bps)
+                );
+            } else {
+                println!("  NVLink: unavailable");
+            }
         }
     } else {
         println!(
