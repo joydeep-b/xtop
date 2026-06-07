@@ -55,9 +55,18 @@ xtop --once
 
 ## Configuration
 
-On first startup, xtop creates `~/.config/xtop/default.toml` (XDG) from the
-built-in defaults (see [`config/default.toml`](config/default.toml)). Any key
-you omit falls back to the built-in defaults, so a partial file is fine.
+On startup, xtop creates `~/.config/xtop` (XDG) and copies any missing bundled
+layout profiles into it without overwriting existing files. The bundled profiles
+are:
+
+- [`default.toml`](config/default.toml): balanced CPU, memory, GPU, network, and
+  disk dashboard.
+- [`gpu-detail.toml`](config/gpu-detail.toml): GPU dashboard with PCIe and
+  NVLink transfer panels.
+- [`simple.toml`](config/simple.toml): CPU, memory, network, and disk layout for
+  CPU-only systems, laptops, and small SSH sessions.
+
+Any key you omit falls back to the built-in defaults, so a partial file is fine.
 
 Every TOML file in `~/.config/xtop/*.toml` is a selectable layout/config profile
 except `selected.toml`, which xtop manages as a symlink to the active profile.
@@ -93,9 +102,8 @@ are present. They honor the `widgets.gpu.mode` setting (`auto` / `compact` /
 > than an integrated rate. NVLink uses NVML's modern aggregate throughput
 > counters; `gpu_nvlink` shows "No NVLink" on devices/drivers without it.
 
-These GPU transfer widgets are not in the default layout. To try them, copy the
-bundled [`config/gpu-detail.toml`](config/gpu-detail.toml) example into
-`~/.config/xtop/` and select it with `l`.
+These GPU transfer widgets are not in the default layout. To try them, select
+the bundled `gpu-detail.toml` profile with `l`.
 
 ```toml
 [settings]
@@ -190,14 +198,16 @@ and check `nvidia-smi -L`.
 
 ```
 src/
-  main.rs            entry point, event loop, sampler thread, --probe mode
-  config.rs          TOML config + recursive layout-tree model
-  layout.rs          resolves the layout tree into terminal rects
-  panel.rs           shared panel borders and titles
-  event.rs           keyboard input -> actions
-  theme.rs           color palettes
-  util.rs            byte/rate formatting
-  collectors/        /proc + NVML sampling (cpu, memory, gpu, disk, net)
-  widgets/           one ratatui renderer per metric
-config/default.toml  embedded defaults
+  main.rs             entry point, event loop, sampler thread, --probe mode
+  config.rs           TOML config + recursive layout-tree model
+  layout.rs           resolves the layout tree into terminal rects
+  panel.rs            shared panel borders and titles
+  event.rs            keyboard input -> actions
+  theme.rs            color palettes
+  util.rs             byte/rate formatting
+  collectors/         /proc + NVML sampling (cpu, memory, gpu, disk, net)
+  widgets/            one ratatui renderer per metric
+config/default.toml   bundled balanced dashboard
+config/gpu-detail.toml bundled GPU transfer layout
+config/simple.toml    bundled CPU/memory/IO layout
 ```

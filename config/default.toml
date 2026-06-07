@@ -1,7 +1,8 @@
 # xtop default configuration.
-# On first startup this is copied to ~/.config/xtop/default.toml. Add more
-# ~/.config/xtop/*.toml files for alternate layouts; selected.toml is the
-# symlink xtop updates to remember the active profile.
+# xtop seeds this into ~/.config/xtop/default.toml when missing, alongside the
+# other bundled layouts. Add more ~/.config/xtop/*.toml files for custom
+# layouts; selected.toml is the symlink xtop updates to remember the active
+# profile.
 
 [settings]
 update_ms = 1000   # sampling + redraw interval

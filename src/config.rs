@@ -6,9 +6,19 @@ use std::path::{Path, PathBuf};
 /// Embedded fallback configuration. Always parses successfully so the app can
 /// run even with no user config present.
 const DEFAULT_CONFIG: &str = include_str!("../config/default.toml");
+const GPU_DETAIL_CONFIG: &str = include_str!("../config/gpu-detail.toml");
+const SIMPLE_CONFIG: &str = include_str!("../config/simple.toml");
 
 const DEFAULT_CONFIG_NAME: &str = "default.toml";
+const GPU_DETAIL_CONFIG_NAME: &str = "gpu-detail.toml";
+const SIMPLE_CONFIG_NAME: &str = "simple.toml";
 const SELECTED_CONFIG_NAME: &str = "selected.toml";
+
+const BUILTIN_LAYOUTS: &[(&str, &str)] = &[
+    (DEFAULT_CONFIG_NAME, DEFAULT_CONFIG),
+    (GPU_DETAIL_CONFIG_NAME, GPU_DETAIL_CONFIG),
+    (SIMPLE_CONFIG_NAME, SIMPLE_CONFIG),
+];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProfileInfo {
@@ -309,9 +319,9 @@ pub struct NetworkOpts {
 }
 
 impl Config {
-    /// Load the active configuration. The first run creates
-    /// `~/.config/xtop/default.toml` from the embedded default; `selected.toml`
-    /// is then used as the persistent symlink to the selected profile.
+    /// Load the active configuration. Startup seeds missing builtin layouts into
+    /// `~/.config/xtop`; `selected.toml` is then used as the persistent symlink
+    /// to the selected profile.
     pub fn load() -> Result<Config> {
         Self::load_active()
     }
@@ -371,14 +381,24 @@ impl Config {
     }
 
     fn ensure_default_config_in(dir: &Path) -> Result<PathBuf> {
-        let path = dir.join(DEFAULT_CONFIG_NAME);
-        if !path.exists() {
-            std::fs::create_dir_all(dir)
-                .with_context(|| format!("creating config dir {}", dir.display()))?;
-            std::fs::write(&path, DEFAULT_CONFIG)
-                .with_context(|| format!("writing default config {}", path.display()))?;
+        Self::ensure_builtin_layouts_in(dir)?;
+        Ok(dir.join(DEFAULT_CONFIG_NAME))
+    }
+
+    fn ensure_builtin_layouts_in(dir: &Path) -> Result<()> {
+        std::fs::create_dir_all(dir)
+            .with_context(|| format!("creating config dir {}", dir.display()))?;
+
+        for (name, contents) in BUILTIN_LAYOUTS {
+            let path = dir.join(name);
+            if path.exists() {
+                continue;
+            }
+            std::fs::write(&path, contents)
+                .with_context(|| format!("writing builtin layout {}", path.display()))?;
         }
-        Ok(path)
+
+        Ok(())
     }
 
     fn list_profiles_in(dir: &Path) -> Result<Vec<ProfileInfo>> {
@@ -496,6 +516,39 @@ mod tests {
         assert_eq!(path, dir.join(DEFAULT_CONFIG_NAME));
         assert!(path.exists());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), DEFAULT_CONFIG);
+        assert_eq!(
+            std::fs::read_to_string(dir.join(GPU_DETAIL_CONFIG_NAME)).unwrap(),
+            GPU_DETAIL_CONFIG
+        );
+        assert_eq!(
+            std::fs::read_to_string(dir.join(SIMPLE_CONFIG_NAME)).unwrap(),
+            SIMPLE_CONFIG
+        );
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn ensure_default_config_preserves_existing_user_files() {
+        let dir = temp_config_dir("preserve");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(DEFAULT_CONFIG_NAME), "[settings]\nhistory = 7\n").unwrap();
+        std::fs::write(dir.join(SIMPLE_CONFIG_NAME), "[settings]\nhistory = 9\n").unwrap();
+
+        Config::ensure_default_config_in(&dir).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(dir.join(DEFAULT_CONFIG_NAME)).unwrap(),
+            "[settings]\nhistory = 7\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dir.join(SIMPLE_CONFIG_NAME)).unwrap(),
+            "[settings]\nhistory = 9\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dir.join(GPU_DETAIL_CONFIG_NAME)).unwrap(),
+            GPU_DETAIL_CONFIG
+        );
 
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -514,7 +567,15 @@ mod tests {
             .map(|profile| profile.name)
             .collect();
 
-        assert_eq!(names, vec!["default.toml", "wide.toml"]);
+        assert_eq!(
+            names,
+            vec![
+                "default.toml",
+                "gpu-detail.toml",
+                "simple.toml",
+                "wide.toml"
+            ]
+        );
 
         let _ = std::fs::remove_dir_all(dir);
     }

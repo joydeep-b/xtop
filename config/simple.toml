@@ -1,0 +1,40 @@
+# xtop "simple" profile.
+# Seeded automatically into ~/.config/xtop/simple.toml when missing. This layout
+# focuses on CPU, memory, network, and disk panels for CPU-only systems, laptops,
+# and small SSH sessions.
+
+[settings]
+update_ms = 1000
+history   = 240
+theme     = "default"
+graph_style = "braille"
+
+[layout]
+direction = "vertical"
+children = [
+  { size = "60%", split = { direction = "horizontal", children = [
+      { size = "50%", widget = "cpu" },
+      { size = "50%", widget = "memory" },
+  ] } },
+  { size = "fill", split = { direction = "horizontal", children = [
+      { size = "50%", widget = "network" },
+      { size = "50%", widget = "disk" },
+  ] } },
+]
+
+[widgets.cpu]
+graph_style = "bar"
+
+[widgets.memory]
+graph_style = "bar"
+show_swap = false
+show_usage_bar = false
+
+[widgets.disk]
+devices   = []
+zfs_pools = []
+graph_style = "bar"
+
+[widgets.network]
+interfaces = []
+graph_style = "bar"
