@@ -7,46 +7,53 @@ BIN     := xtop
 
 .DEFAULT_GOAL := build
 
-.PHONY: all build release run probe check fmt fmt-check clippy test \
+.PHONY: all check-cargo build release run probe check fmt fmt-check clippy test \
         clean distclean install uninstall help
 
 ## all: format check + lint + release build
 all: fmt-check clippy release
 
+check-cargo:
+	@command -v "$(CARGO)" >/dev/null 2>&1 || { \
+		echo "Error: cargo is required but was not found."; \
+		echo "Install Rust and Cargo from https://rust-lang.org/tools/install/"; \
+		exit 1; \
+	}
+
 ## build: debug build
-build:
+build: check-cargo
 	$(CARGO) build
 
 ## release: optimized release build
-release:
+release: check-cargo
 	$(CARGO) build --release
 
 ## run: build and run the TUI (debug)
-run:
+run: check-cargo
 	$(CARGO) run
 
 ## probe: one-shot text metrics dump (headless, no TTY needed)
-probe:
+probe: check-cargo
 	$(CARGO) run --release -- --probe
 
 ## check: fast type-check without producing a binary
-check:
+check: check-cargo
 	$(CARGO) check
 
 ## fmt: format the code in place
-fmt:
+fmt: check-cargo
 	$(CARGO) fmt
 
 ## fmt-check: verify formatting (CI-friendly, non-mutating)
-fmt-check:
+fmt-check: check-cargo
 	$(CARGO) fmt --check
 
 ## clippy: lint with warnings denied
-clippy:
+clippy: check-cargo
 	$(CARGO) clippy --all-targets -- -D warnings
 
 ## test: run the test suite
-test:
+test: check-cargo
 	$(CARGO) test
 
 ## install: install the release binary into $(BINDIR)
@@ -61,7 +68,7 @@ uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(BIN)
 
 ## clean: remove build artifacts
-clean:
+clean: check-cargo
 	$(CARGO) clean
 
 ## distclean: clean + remove the lockfile
