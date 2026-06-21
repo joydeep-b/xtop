@@ -40,6 +40,7 @@ pub struct Graph<'a> {
     pub title: String,
     pub data: &'a [f64],
     pub max: Option<f64>,
+    pub peak_formatter: Option<fn(f64) -> String>,
     pub color: Color,
 }
 
@@ -267,21 +268,11 @@ pub fn braille_sparkline(
 ) -> Canvas<'static, impl Fn(&mut Context)> {
     let x_dots = usize::from(area.width).saturating_mul(2).max(1);
     let y_dots = usize::from(area.height).saturating_mul(4).max(1);
-    let scale = max.unwrap_or_else(|| {
-        data.iter()
-            .copied()
-            .filter(|value| value.is_finite())
-            .fold(0.0, f64::max)
-    });
-    let scale = scale.max(1.0);
-    let visible_count = data.len().min(x_dots);
+    let visible = visible_samples(data, x_dots);
+    let scale = graph_scale(max, visible);
+    let visible_count = visible.len();
     let start_x = x_dots - visible_count;
-    let points = braille_bar_points(
-        &data[data.len().saturating_sub(visible_count)..],
-        scale,
-        start_x,
-        y_dots,
-    );
+    let points = braille_bar_points(visible, scale, start_x, y_dots);
     let x_max = (x_dots - 1) as f64;
 
     Canvas::default()
@@ -321,14 +312,10 @@ fn render_bar_graph(f: &mut Frame, area: Rect, data: &[f64], max: Option<f64>, c
 }
 
 fn paint_bar_graph(buf: &mut Buffer, area: Rect, data: &[f64], max: Option<f64>, color: Color) {
-    let scale = max.unwrap_or_else(|| {
-        data.iter()
-            .copied()
-            .filter(|value| value.is_finite())
-            .fold(0.0, f64::max)
-    });
-    let scale = scale.max(1.0);
-    let visible_count = data.len().min(area.width as usize);
+    let capacity = visible_sample_capacity(area.width, GraphStyle::Bar);
+    let visible = visible_samples(data, capacity);
+    let scale = graph_scale(max, visible);
+    let visible_count = visible.len();
     let start_x = area.width as usize - visible_count;
     let style = Style::default().fg(color);
 
@@ -345,10 +332,7 @@ fn paint_bar_graph(buf: &mut Buffer, area: Rect, data: &[f64], max: Option<f64>,
             .set_style(style);
     }
 
-    for (offset, value) in data[data.len().saturating_sub(visible_count)..]
-        .iter()
-        .enumerate()
-    {
+    for (offset, value) in visible.iter().enumerate() {
         let value = if value.is_finite() {
             value.max(0.0).min(scale)
         } else {
@@ -368,6 +352,34 @@ fn paint_bar_graph(buf: &mut Buffer, area: Rect, data: &[f64], max: Option<f64>,
                 .set_style(style);
         }
     }
+}
+
+fn visible_sample_capacity(width: u16, graph_style: GraphStyle) -> usize {
+    match graph_style {
+        GraphStyle::Braille => usize::from(width).saturating_mul(2).max(1),
+        GraphStyle::Bar => usize::from(width),
+    }
+}
+
+fn visible_samples(data: &[f64], capacity: usize) -> &[f64] {
+    let visible_count = data.len().min(capacity);
+    &data[data.len().saturating_sub(visible_count)..]
+}
+
+fn visible_window_peak(data: &[f64], width: u16, graph_style: GraphStyle) -> f64 {
+    let capacity = visible_sample_capacity(width, graph_style);
+    finite_peak(visible_samples(data, capacity))
+}
+
+fn graph_scale(max: Option<f64>, visible: &[f64]) -> f64 {
+    max.unwrap_or_else(|| finite_peak(visible)).max(1.0)
+}
+
+fn finite_peak(data: &[f64]) -> f64 {
+    data.iter()
+        .copied()
+        .filter(|value| value.is_finite())
+        .fold(0.0, f64::max)
 }
 
 fn block_symbol(eighths: u16) -> &'static str {
@@ -457,12 +469,13 @@ fn render_graph_cell(
         return;
     }
 
+    let title = graph_title(graph, area.width, graph_style);
     write_truncated_text(
         f.buffer_mut(),
         area.x,
         area.y,
         area.width,
-        &graph.title,
+        &title,
         Style::default().fg(graph.color),
     );
 
@@ -508,6 +521,19 @@ fn render_graph_cell(
             );
         }
     }
+}
+
+fn graph_title(graph: &Graph<'_>, width: u16, graph_style: GraphStyle) -> String {
+    if graph.max.is_some() {
+        return graph.title.clone();
+    }
+
+    let Some(format_peak) = graph.peak_formatter else {
+        return graph.title.clone();
+    };
+
+    let peak = visible_window_peak(graph.data, width, graph_style);
+    format!("{} | peak {}", graph.title, format_peak(peak))
 }
 
 fn write_right_aligned(buf: &mut Buffer, x: u16, y: u16, width: u16, text: &str, style: Style) {
@@ -599,5 +625,49 @@ mod tests {
     fn history_window_label_reflects_visible_plot_samples() {
         assert_eq!(history_window_label(240, 125, 1000), "-3m");
         assert_eq!(history_window_label(10, 20, 500), "-4s");
+    }
+
+    #[test]
+    fn visible_window_peak_uses_bar_graph_width() {
+        let data = [100.0, 1.0, 2.0, 3.0];
+
+        assert_eq!(visible_window_peak(&data, 3, GraphStyle::Bar), 3.0);
+        assert_eq!(visible_window_peak(&data, 4, GraphStyle::Bar), 100.0);
+    }
+
+    #[test]
+    fn visible_window_peak_uses_braille_sample_capacity() {
+        let data = [100.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+
+        assert_eq!(visible_window_peak(&data, 3, GraphStyle::Braille), 6.0);
+        assert_eq!(visible_window_peak(&data, 4, GraphStyle::Braille), 100.0);
+    }
+
+    #[test]
+    fn graph_title_adds_peak_only_for_auto_scaled_graphs() {
+        fn fmt_test(value: f64) -> String {
+            format!("{value:.0}")
+        }
+
+        let auto_scaled = Graph {
+            title: "rx 0".to_string(),
+            data: &[100.0, 1.0, 2.0, 3.0],
+            max: None,
+            peak_formatter: Some(fmt_test),
+            color: Color::Green,
+        };
+        assert_eq!(
+            graph_title(&auto_scaled, 3, GraphStyle::Bar),
+            "rx 0 | peak 3"
+        );
+
+        let fixed_scale = Graph {
+            title: "util 50%".to_string(),
+            data: &[50.0],
+            max: Some(100.0),
+            peak_formatter: Some(fmt_test),
+            color: Color::Green,
+        };
+        assert_eq!(graph_title(&fixed_scale, 3, GraphStyle::Bar), "util 50%");
     }
 }

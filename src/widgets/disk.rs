@@ -32,12 +32,14 @@ pub fn render(f: &mut Frame, area: Rect, snap: &Snapshot, config: &Config, theme
             title: format!("{} R {}", dev.name, fmt_rate(dev.read_bps)),
             data: &dev.read_history,
             max: None,
+            peak_formatter: Some(fmt_rate),
             color: theme.rx,
         };
         let write = Graph {
             title: format!("W {}", fmt_rate(dev.write_bps)),
             data: &dev.write_history,
             max: None,
+            peak_formatter: Some(fmt_rate),
             color: theme.tx,
         };
 
