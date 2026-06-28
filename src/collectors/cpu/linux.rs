@@ -151,3 +151,30 @@ fn read_preferred_hwmon_temp(path: &std::path::Path) -> Option<f64> {
 
     fallback
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_times_counts_idle_iowait_and_total() {
+        let times = parse_times("10 20 30 40 5 6 7 8 9 10".split_whitespace());
+
+        assert_eq!(times.idle, 45);
+        assert_eq!(times.total, 126);
+    }
+
+    #[test]
+    fn busy_percent_uses_delta_since_previous_sample() {
+        let prev = CpuTimes {
+            idle: 100,
+            total: 200,
+        };
+        let cur = CpuTimes {
+            idle: 125,
+            total: 300,
+        };
+
+        assert_eq!(busy_percent(prev, cur), 75.0);
+    }
+}

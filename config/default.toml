@@ -1,8 +1,7 @@
 # xtop default configuration.
-# xtop seeds this into ~/.config/xtop/default.toml when missing, alongside the
-# other bundled layouts. Add more ~/.config/xtop/*.toml files for custom
-# layouts; selected.toml is the symlink xtop updates to remember the active
-# profile.
+# xtop seeds this into the platform config directory when missing, alongside the
+# other bundled layouts. Add more TOML files there for custom layouts;
+# selected.toml is the symlink xtop updates to remember the active profile.
 
 [settings]
 update_ms = 1000   # sampling + redraw interval
@@ -48,16 +47,17 @@ graph_style = "bar"
 show_swap = false       # show swap usage text + gauge
 show_usage_bar = false  # show the current RAM usage bar above the history graph
 
-# Block devices as in /proc/diskstats (e.g. nvme0n1, sda, dm-0),
-# NOT mountpoints. Empty list = auto (whole disks; loop*/ram* hidden).
-# ZFS pools are monitored via /proc/spl/kstat/zfs; empty = auto-detect all
-# imported pools.
+# Disk device names are platform-specific, not mountpoints:
+#   Linux: entries from /proc/diskstats (e.g. nvme0n1, sda, dm-0)
+#   macOS: BSD whole-disk names (e.g. disk0, disk1)
+# Empty list = auto. ZFS pools are Linux OpenZFS only via /proc/spl/kstat/zfs;
+# empty zfs_pools = auto-detect all imported pools on Linux.
 [widgets.disk]
 devices   = []
 zfs_pools = []  # [] = auto-detect all imported ZFS pools
 graph_style = "bar"
 
-# Empty list = all non-loopback interfaces.
+# Empty list = auto. Examples: eth0/enp* on Linux, en0/en1 on macOS.
 [widgets.network]
 interfaces = []
 graph_style = "bar"

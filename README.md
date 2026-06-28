@@ -10,13 +10,14 @@ A lightweight, configurable, btop-like terminal system monitor written in Rust.
 - Network IO (per interface, down/up rates and totals)
 - **Fully configurable widget layout** and selectable layout profiles via TOML
 
-It samples Linux `/proc` and `/sys` directly (no heavy metrics dependency) and
-renders with [`ratatui`](https://ratatui.rs) + `crossterm`, producing a small
-(~1 MB) statically-strippable binary with minimal idle overhead.
+It samples native OS counters directly (Linux `/proc`/`/sys`, macOS Mach/sysctl,
+getifaddrs, and IOKit) and renders with [`ratatui`](https://ratatui.rs) +
+`crossterm`, producing a small statically-strippable binary with minimal idle
+overhead.
 
-> Platform: Linux only. NVIDIA GPU support requires the NVIDIA driver + NVML
-> (`libnvidia-ml.so` or `libnvidia-ml.so.1`); without it the GPU widget shows an
-> "unavailable" notice.
+> Platform: Linux supports CPU, memory, network, disk, Linux OpenZFS pools, and
+> NVIDIA GPU metrics via NVML. macOS supports CPU, memory, network, and disk;
+> Apple GPU metrics and macOS ZFS pool counters are currently unavailable.
 
 ## Screenshot
 
@@ -69,7 +70,7 @@ Tagged releases publish downloadable binaries as GitHub Release assets; the
 compiled artifacts are not committed to this repository. Download the newest
 assets from the [latest release](https://github.com/joydeep-b/xtop/releases/latest).
 
-Linux amd64 releases include two builds:
+Tagged release assets currently include Linux amd64 builds:
 
 ```text
 xtop-v0.1.1-x86_64-unknown-linux-gnu.tar.gz   # GPU-capable; needs glibc + NVIDIA driver/NVML
@@ -79,6 +80,9 @@ xtop-v0.1.1-x86_64-unknown-linux-musl.tar.gz  # More portable; NVIDIA GPU metric
 Use the GNU/glibc build on NVIDIA systems. The musl build is useful for
 CPU-only/minimal systems, but its static libc configuration does not support the
 dynamic library loading needed to open NVML.
+
+macOS users can build from source with `make` or `make install`; macOS release
+artifacts will be useful once the macOS collector coverage has settled.
 
 For maintainers, publish a release by creating and pushing a version tag that
 matches the crate version:
@@ -105,9 +109,10 @@ still require the host NVIDIA driver and NVML library at runtime.
 
 ## Configuration
 
-On startup, xtop creates `~/.config/xtop` (XDG) and copies any missing bundled
-layout profiles into it without overwriting existing files. The bundled profiles
-are:
+On startup, xtop creates its platform config directory and copies any missing
+bundled layout profiles into it without overwriting existing files. On macOS
+this is `~/Library/Application Support/xtop`; on Linux/XDG this is usually
+`${XDG_CONFIG_HOME:-~/.config}/xtop`. The bundled profiles are:
 
 - [`default.toml`](config/default.toml): balanced CPU, memory, GPU, network, and
   disk dashboard.
@@ -118,7 +123,7 @@ are:
 
 Any key you omit falls back to the built-in defaults, so a partial file is fine.
 
-Every TOML file in `~/.config/xtop/*.toml` is a selectable layout/config profile
+Every TOML file in the config directory is a selectable layout/config profile
 except `selected.toml`, which xtop manages as a symlink to the active profile.
 Use `l` in the TUI to choose a profile; selecting one updates `selected.toml` so
 the same profile is used on restart. If `selected.toml` is absent, xtop loads
@@ -182,12 +187,12 @@ children = [
 ]
 
 [widgets.disk]
-devices = []            # empty = auto (physical devices only)
-zfs_pools = []          # empty = auto-detect imported ZFS pools
+devices = []            # empty = auto; Linux nvme0n1/sda, macOS disk0/disk1
+zfs_pools = []          # Linux OpenZFS only; empty = auto-detect imported pools
 graph_style = "bar"     # override global graph_style
 
 [widgets.network]
-interfaces = []         # empty = all non-loopback interfaces
+interfaces = []         # empty = auto; Linux eth0/enp*, macOS en0/en1
 graph_style = "bar"     # override global graph_style
 ```
 
@@ -210,8 +215,8 @@ graph_style = "bar"
 mode = "auto"           # auto / compact / per_device
 
 [widgets.disk]
-devices = ["nvme0n1"]   # block devices from /proc/diskstats; [] = auto
-zfs_pools = ["tank"]    # ZFS pools from /proc/spl/kstat/zfs; [] = auto
+devices = ["nvme0n1"]   # Linux example; use ["disk0"] on macOS; [] = auto
+zfs_pools = ["tank"]    # Linux OpenZFS via /proc/spl/kstat/zfs; [] = auto
 ```
 
 Want CPU stacked over GPU on the left and memory taking the whole right half?
@@ -234,12 +239,7 @@ children = [
 GPU monitoring uses NVML from the NVIDIA driver stack; the CUDA toolkit is not
 required. Some driver installs expose only the versioned NVML soname
 (`libnvidia-ml.so.1`) instead of the unversioned development symlink
-(`libnvidia-ml.so`). xtop tries both on Linux. If your cluster uses a custom
-driver path, set an explicit override:
-
-```bash
-XTOP_NVML_LIB=/lib64/libnvidia-ml.so.1 ./target/release/xtop --probe
-```
+(`libnvidia-ml.so`). xtop uses NVML through `nvml-wrapper` on Linux.
 
 If NVML loads but the driver is not accessible, validate from a GPU allocation
 and check `nvidia-smi -L`. 
@@ -255,7 +255,7 @@ src/
   event.rs            keyboard input -> actions
   theme.rs            color palettes
   util.rs             byte/rate formatting
-  collectors/         /proc + NVML sampling (cpu, memory, gpu, disk, net)
+  collectors/         platform sampling backends (cpu, memory, gpu, disk, net)
   widgets/            one ratatui renderer per metric
 config/default.toml   bundled balanced dashboard
 config/gpu-detail.toml bundled GPU transfer layout

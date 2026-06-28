@@ -1,7 +1,7 @@
 # xtop "simple" profile.
-# Seeded automatically into ~/.config/xtop/simple.toml when missing. This layout
-# focuses on CPU, memory, network, and disk panels for CPU-only systems, laptops,
-# and small SSH sessions.
+# Seeded automatically into the platform config directory when missing. This
+# layout focuses on CPU, memory, network, and disk panels for CPU-only systems,
+# laptops, and small SSH sessions.
 
 [settings]
 update_ms = 1000
@@ -31,10 +31,13 @@ show_swap = false
 show_usage_bar = false
 
 [widgets.disk]
+# Linux devices use /proc/diskstats names (e.g. sda); macOS uses BSD names
+# (e.g. disk0). ZFS pools are Linux OpenZFS only.
 devices   = []
 zfs_pools = []
 graph_style = "bar"
 
 [widgets.network]
+# Empty list = auto. Examples: eth0/enp* on Linux, en0/en1 on macOS.
 interfaces = []
 graph_style = "bar"

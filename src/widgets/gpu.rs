@@ -749,7 +749,7 @@ fn render_device_graph(
 
 fn render_unavailable(f: &mut Frame, area: Rect, error: Option<&str>, theme: &Theme) {
     let msg = match error {
-        Some(e) => format!("NVIDIA GPU unavailable\n{e}"),
+        Some(e) => format!("GPU unavailable\n{e}"),
         None => "No NVIDIA GPU detected".to_string(),
     };
     let p = Paragraph::new(msg)

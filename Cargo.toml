@@ -14,10 +14,15 @@ ratatui = "0.29"
 crossterm = "0.28"
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
-nvml-wrapper = "0.12"
-nvml-wrapper-sys = "0.9"
 dirs = "5"
 anyhow = "1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nvml-wrapper = "0.12"
+nvml-wrapper-sys = "0.9"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
 
 [profile.release]
 opt-level = 3

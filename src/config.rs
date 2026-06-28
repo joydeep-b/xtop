@@ -301,8 +301,8 @@ pub struct NetworkOpts {
 
 impl Config {
     /// Load the active configuration. Startup seeds missing builtin layouts into
-    /// `~/.config/xtop`; `selected.toml` is then used as the persistent symlink
-    /// to the selected profile.
+    /// the platform config directory; `selected.toml` is then used as the
+    /// persistent symlink to the selected profile.
     pub fn load() -> Result<Config> {
         Self::load_active()
     }

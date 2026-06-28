@@ -234,3 +234,30 @@ fn parse_objset(text: &str, expected_pool: &str) -> Option<(u64, u64)> {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_objset_accepts_root_dataset_only() {
+        let text = "\
+dataset_name 4 tank
+nread 4 1024
+nwritten 4 2048
+";
+
+        assert_eq!(parse_objset(text, "tank"), Some((1024, 2048)));
+    }
+
+    #[test]
+    fn parse_objset_rejects_child_dataset() {
+        let text = "\
+dataset_name 4 tank/home
+nread 4 1024
+nwritten 4 2048
+";
+
+        assert_eq!(parse_objset(text, "tank"), None);
+    }
+}

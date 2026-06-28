@@ -939,6 +939,7 @@ dependencies = [
  "anyhow",
  "crossterm",
  "dirs",
+ "libc",
  "nvml-wrapper",
  "nvml-wrapper-sys",
  "ratatui",

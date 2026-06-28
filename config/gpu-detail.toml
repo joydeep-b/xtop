@@ -1,7 +1,7 @@
 # xtop "GPU detail" example profile.
-# Seeded automatically into ~/.config/xtop/gpu-detail.toml when missing. Press
-# `l` in the TUI to select it. Any keys you omit fall back to the built-in
-# defaults, so this only needs to override the layout.
+# Seeded automatically into the platform config directory when missing. Press `l`
+# in the TUI to select it. Any keys you omit fall back to the built-in defaults,
+# so this only needs to override the layout.
 #
 # This profile adds the PCIe and NVLink transfer widgets next to the GPU panel.
 # NVLink panels show "No NVLink" on hardware/drivers without NVLink.
