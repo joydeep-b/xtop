@@ -528,7 +528,7 @@ impl CompactGpuStats {
     }
 
     fn util_summary_line(&self, theme: &Theme) -> Line<'static> {
-        Line::from(vec![
+        let mut spans = vec![
             Span::styled(
                 format!("{}x {}", self.count, self.name),
                 Style::default().fg(theme.label),
@@ -543,14 +543,31 @@ impl CompactGpuStats {
                 format!("{:.0}%", self.max_util),
                 Style::default().fg(theme.gradient(self.max_util)),
             ),
-            Span::styled(" | temp max ", Style::default().fg(theme.label)),
-            Span::styled(
+        ];
+
+        if self.temp_max > 0 {
+            spans.push(Span::styled(
+                " | temp max ",
+                Style::default().fg(theme.label),
+            ));
+            spans.push(Span::styled(
                 format!("{}C", self.temp_max),
                 Style::default().fg(theme.gradient(self.temp_max as f64)),
-            ),
-            Span::styled(" | power ", Style::default().fg(theme.label)),
-            Span::raw(format!("{:.0}/{:.0}W", self.power_w, self.power_limit_w)),
-        ])
+            ));
+        }
+        if self.power_w > 0.0 || self.power_limit_w > 0.0 {
+            spans.push(Span::styled(" | power ", Style::default().fg(theme.label)));
+            if self.power_limit_w > 0.0 {
+                spans.push(Span::raw(format!(
+                    "{:.0}/{:.0}W",
+                    self.power_w, self.power_limit_w
+                )));
+            } else {
+                spans.push(Span::raw(format!("{:.0}W", self.power_w)));
+            }
+        }
+
+        Line::from(spans)
     }
 
     fn memory_summary_line(&self, theme: &Theme) -> Line<'static> {
@@ -694,14 +711,20 @@ fn render_device_graph(
     graph: GpuGraph,
 ) {
     let (title, data, color) = match graph {
-        GpuGraph::Util => (
-            format!(
-                "{} util {:.0}% | {}C | {:.0}/{:.0}W",
-                dev.name, dev.util, dev.temp_c, dev.power_w, dev.power_limit_w
-            ),
-            dev.util_history.as_slice(),
-            theme.gradient(dev.util),
-        ),
+        GpuGraph::Util => {
+            let mut title = format!("{} util {:.0}%", dev.name, dev.util);
+            if dev.temp_c > 0 {
+                title.push_str(&format!(" | {}C", dev.temp_c));
+            }
+            if dev.power_w > 0.0 || dev.power_limit_w > 0.0 {
+                if dev.power_limit_w > 0.0 {
+                    title.push_str(&format!(" | {:.0}/{:.0}W", dev.power_w, dev.power_limit_w));
+                } else {
+                    title.push_str(&format!(" | {:.0}W", dev.power_w));
+                }
+            }
+            (title, dev.util_history.as_slice(), theme.gradient(dev.util))
+        }
         GpuGraph::Memory => {
             let mem_pct = if dev.mem_total > 0 {
                 dev.mem_used as f64 / dev.mem_total as f64 * 100.0

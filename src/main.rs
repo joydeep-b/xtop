@@ -205,13 +205,21 @@ fn probe(config: &Config) -> Result<()> {
     if s.gpu.available {
         for (i, d) in s.gpu.devices.iter().enumerate() {
             println!(
-                "GPU {i}: {} util {:.0}%, VRAM {}/{}, {}C, {:.0}W",
+                "GPU {i}: {} util {:.0}%, VRAM {}/{}{}{}",
                 d.name,
                 d.util,
                 fmt_bytes(d.mem_used),
                 fmt_bytes(d.mem_total),
-                d.temp_c,
-                d.power_w
+                if d.temp_c > 0 {
+                    format!(", {}C", d.temp_c)
+                } else {
+                    String::new()
+                },
+                if d.power_w > 0.0 {
+                    format!(", {:.0}W", d.power_w)
+                } else {
+                    String::new()
+                }
             );
             println!(
                 "  PCIe: Rx {} Tx {}",

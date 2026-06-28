@@ -5,6 +5,8 @@ mod linux;
 
 #[cfg(target_os = "linux")]
 pub(super) use crate::collectors::History;
+#[cfg(target_os = "macos")]
+pub(super) use crate::collectors::History;
 
 #[cfg(target_os = "macos")]
 #[allow(unused_imports)]

@@ -3,8 +3,8 @@
 A lightweight, configurable, btop-like terminal system monitor written in Rust.
 
 - Multi-core CPU (joint all-core utilization, load average, and optional temperature)
-- NVIDIA GPU via NVML (utilization + VRAM history, temperature, power), with
-  auto compact/per-device rendering and graceful fallback when no driver/GPU is present
+- GPU metrics: NVIDIA via NVML on Linux, Apple Silicon utilization + unified
+  memory via IOKit on macOS, with graceful fallback when no GPU metrics are present
 - Memory (RAM + optional swap and current-usage bar)
 - Disk IO (physical block devices plus optional ZFS pool counters)
 - Network IO (per interface, down/up rates and totals)
@@ -16,8 +16,9 @@ getifaddrs, and IOKit) and renders with [`ratatui`](https://ratatui.rs) +
 overhead.
 
 > Platform: Linux supports CPU, memory, network, disk, Linux OpenZFS pools, and
-> NVIDIA GPU metrics via NVML. macOS supports CPU, memory, network, and disk;
-> Apple GPU metrics and macOS ZFS pool counters are currently unavailable.
+> NVIDIA GPU metrics via NVML. macOS supports CPU, memory, network, disk, and
+> Apple Silicon GPU utilization/unified-memory metrics via IOKit; Apple GPU
+> temperature/power and macOS ZFS pool counters are currently unavailable.
 
 ## Screenshot
 
